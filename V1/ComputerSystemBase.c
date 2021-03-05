@@ -1,73 +1,78 @@
-#include <stdio.h>
+#include <string.h>
 #include <stdarg.h>
 #include <stdlib.h>
-#include <string.h>
 #include <ctype.h>
 #include "ComputerSystem.h"
-#include "OperatingSystem.h"
+#include "ComputerSystemBase.h"
 #include "Processor.h"
+#include "Heap.h"
+#include "OperatingSystemBase.h"
 #include "Messages.h"
+#include "Asserts.h"
+
+// Functions prototypes
+
+
+extern int GEN_ASSERTS;
 
 char defaultDebugLevel[]="A";
 // String specified in the command line to tell the simulator which of its
 // sections are interesting for the user so it must show debug messages
 // related to them
 char *debugLevel=defaultDebugLevel;
-  
+
+int endSimulationTime=-1; // For end simulation forced by time
+
 // Only one colour messages. Set to 1 for more colours checking uppercase in debugLevel
 int COLOURED = 0 ;
 
-// Powers on of the Computer System. This function is as primitive as the OS
-void ComputerSystem_PowerOn(int argc, char *argv[]) {
-  int i, nm;
+// Fill in the array named userProgramsList with the information given
+// by the user in the command line
+// IT IS NOT NECESSARY TO COMPLETELY UNDERSTAND THIS FUNCTION
+int ComputerSystem_ObtainProgramList(int argc, char *argv[], int paramIndex) {
+	
+	int i;
+	int count=1;  // 0 reserved for sipid
+	PROGRAMS_DATA *progData;
 
-	// Initial values for the processor registers. In the old days, the
-	// CS operator had to initialize them in a similar way
-	const int initialValueForPCRegister=230;
-	const int initialValueForAccumulatorRegister=0;
-	const int initialValueForPSWRegister=128;
+	// Initialization of the programList
+	for (i=0; i<PROGRAMSMAXNUMBER;i++) {
+	      programList[i]=NULL;
+	}
 
-	// Load debug messages
-	nm=Messages_Load_Messages();
-	printf("%d Messages Loaded\n",nm);
-	
-	// To remember the simulator sections to be message-debugged and if messages must be coloured
-	// If parameter exists is debugLevel. Default "A"
-	if (argc==2) 
-		debugLevel = argv[1];
-	for (i=0; i< strlen(debugLevel);i++)
-		if (isupper(debugLevel[i])){
-			COLOURED = 1;
-			debugLevel[i]=tolower(debugLevel[i]);
-		}
-	
-	
-	FILE *programFile;
-	// Initialize processor registers
-	Processor_InitializeRegisters(initialValueForPCRegister, initialValueForAccumulatorRegister, initialValueForPSWRegister);
-	
-	// If PROGRAM_TO_BE_EXECUTED exists, is executed
-	programFile= fopen(PROGRAM_TO_BE_EXECUTED, "r");
-	
-	// Check if programFile exists, if not, poweroff system
-	if (programFile==NULL)
-		ComputerSystem_PowerOff();
-	
-	// Load the program in main memory, beginning at the address given by the second argument
-	OperatingSystem_LoadProgram(programFile, initialValueForPCRegister);
-	
-	// Tell the processor to begin its instruction cycle 
-	Processor_InstructionCycleLoop();
-	
+	// To remember the simulator sections to be message-debugged
+	for (i=0; i< strlen(debugLevel);i++) {
+	  if (isupper(debugLevel[i])){
+		COLOURED = 1;
+		debugLevel[i]=tolower(debugLevel[i]);
+	  }
+	}
+
+	// Store the names of the programs
+	for (i = paramIndex; i < argc && count<PROGRAMSMAXNUMBER;) { // check number of programs < PROGRAMSMAXNUMBER
+		progData=(PROGRAMS_DATA *) malloc(sizeof(PROGRAMS_DATA));
+		// Save file name
+		progData->executableName = (char *) malloc((strlen(argv[i])+1)*sizeof(char));
+		strcpy(progData->executableName,argv[i]);
+		i++;
+		// Default arrival time: 0  
+		progData->arrivalTime = 0;
+		// Try to store the arrival time if exists
+		if ((i < argc)
+			 && (sscanf(argv[i], "%d", &(progData->arrivalTime)) == 1)) {
+				// An arrival time has been read. Increment i
+				i++;
+			 }
+		// Defaul user programs
+		progData->type=USERPROGRAM;
+
+		// Store the structure in the list
+		programList[count]=progData;
+		
+ 		count++; // There is one more program
+	}
+	return count; // Next place for new programs
 }
-
-
-// Powers off the CS (the C program ends)
-void ComputerSystem_PowerOff() {
-	ComputerSystem_DebugMessage(99,SHUTDOWN);
-	exit(0);
-}
-
 
 // Function used to show messages with details of the internal working of
 // the simulator
@@ -76,7 +81,7 @@ void ComputerSystem_DebugMessage(int msgNo, char section, ...) {
 
 	va_list lp;
 	char c, *format;
-	int count, youHaveToContinue, colour;
+	int count, youHaveToContinue, colour=0;
  
 	int pos;
 	
@@ -93,7 +98,7 @@ void ComputerSystem_DebugMessage(int msgNo, char section, ...) {
 	  || section == ERROR  						//  Always print ERROR section
 	  || (strchr(debugLevel,section)) != NULL){ //  or the section argument is included in the debugLevel string
 		
-		for (count = 0, youHaveToContinue = 1, colour=0; youHaveToContinue == 1; count++) {
+		for (count = 0, youHaveToContinue = 1; youHaveToContinue == 1; count++) {
 			//printf("(%c)",format[count]);
 			switch (format[count]) {
 				case '\\':count++;
@@ -162,30 +167,19 @@ void ComputerSystem_DebugMessage(int msgNo, char section, ...) {
 					switch (format[count]) {
 						case 's':
 							printf("%s",va_arg(lp, char *));
-							// if (colour)
-								// printf("%c[%dm", 0x1B, 0);
 							break;
 						case 'd':
 							printf("%d",va_arg(lp, int));
-							// if (colour) 
-								// printf("%c[%dm", 0x1B, 0);
 							break;
 						case 'f':
 							printf("%f",va_arg(lp, double));
-							// if (colour) 
-								// printf("%c[%dm", 0x1B, 0);
 							break;
 						case 'c':
 							c = (char) va_arg(lp, int);
 							printf("%c", c);
-							// if (colour) 
-								// printf("%c[%dm", 0x1B, 0);
 							break;
 						case 'x':
-							// c = (char) va_arg(lp, int);
-							printf("%08X", va_arg(lp, int));
-							// if (colour) 
-								// printf("%c[%dm", 0x1B, 0);
+							printf("%04X", va_arg(lp, int));
 							break;
 						default:
 							youHaveToContinue = 0;
@@ -202,3 +196,4 @@ void ComputerSystem_DebugMessage(int msgNo, char section, ...) {
 	if (COLOURED && colour)
 	    printf("%c[%dm", 0x1B, 0);
 } // ComputerSystem_DebugMessage()
+
