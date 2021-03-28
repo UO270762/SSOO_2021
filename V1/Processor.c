@@ -180,25 +180,39 @@ void Processor_DecodeAndExecuteInstruction() {
 
 		// Instruction HALT
 		case HALT_INST: 
+		if(Processor_PSW_BitState(EXECUTION_MODE_BIT) == 1) { //Comprueba si eres usuario
 			Processor_ActivatePSW_Bit(POWEROFF_BIT);
-			break;
+		} else {
+			Processor_RaiseInterrupt(EXCEPTION_BIT); //En caso de que no sacas excepcion
+		}
+		break;
 			  
 		// Instruction OS
-		case OS_INST: // Make a operating system routine in entry point indicated by operand1
-			// Show final part of HARDWARE message with CPU registers
-			// Show message: " (PC: registerPC_CPU, Accumulator: registerAccumulator_CPU, PSW: registerPSW_CPU [Processor_ShowPSW()]\n
-			ComputerSystem_DebugMessage(69, HARDWARE,InstructionNames[operationCode],operand1,operand2,registerPC_CPU,registerAccumulator_CPU,registerPSW_CPU,Processor_ShowPSW());
-			// Not all operating system code is executed in simulated processor, but really must do it... 
-			OperatingSystem_InterruptLogic(operand1);
-			registerPC_CPU++;
-			// Update PSW bits (ZERO_BIT, NEGATIVE_BIT, ...)
-			Processor_UpdatePSW();
-			return; // Note: message show before... for operating system messages after...
+		case OS_INST: 
+			if(Processor_PSW_BitState(EXECUTION_MODE_BIT) == 1) { //Comprueba si eres usuario
+				// Make a operating system routine in entry point indicated by operand1
+				// Show final part of HARDWARE message with CPU registers
+				// Show message: " (PC: registerPC_CPU, Accumulator: registerAccumulator_CPU, PSW: registerPSW_CPU [Processor_ShowPSW()]\n
+				ComputerSystem_DebugMessage(69, HARDWARE,InstructionNames[operationCode],operand1,operand2,registerPC_CPU,registerAccumulator_CPU,registerPSW_CPU,Processor_ShowPSW());
+				// Not all operating system code is executed in simulated processor, but really must do it... 
+				OperatingSystem_InterruptLogic(operand1);
+				registerPC_CPU++;
+				// Update PSW bits (ZERO_BIT, NEGATIVE_BIT, ...)
+				Processor_UpdatePSW();
+				return; // Note: message show before... for operating system messages after...
+			} else {
+				Processor_RaiseInterrupt(EXCEPTION_BIT); //En caso de que no sacas excepcion
+			}
+			break;
 
 		// Instruction IRET
 		case IRET_INST: // Return from a interrupt handle manager call
-			registerPC_CPU=Processor_CopyFromSystemStack(MAINMEMORYSIZE-1);
-			registerPSW_CPU=Processor_CopyFromSystemStack(MAINMEMORYSIZE-2);
+			if(Processor_PSW_BitState(EXECUTION_MODE_BIT) == 1) {
+				registerPC_CPU=Processor_CopyFromSystemStack(MAINMEMORYSIZE-1);
+				registerPSW_CPU=Processor_CopyFromSystemStack(MAINMEMORYSIZE-2);
+			} else {
+				Processor_RaiseInterrupt(EXCEPTION_BIT); //En caso de que no sacas excepcion
+			}
 			break;		
 		//Instruction MEMADD_INST
 		case MEMADD_INST:

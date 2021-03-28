@@ -1,5 +1,6 @@
-30
-5
+// prog-V1-E6
+80
+2
 NOP
 TRAP 5
 ADD 10 -13
