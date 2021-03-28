@@ -1,0 +1,7 @@
+20
+50
+ADD 5 4
+NOP
+INC 2
+OS 5
+TRAP 3
